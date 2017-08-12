@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta charset="utf-8">
+    <title>Vehicle Tracker</title>
+
+    <link href="css/map.css" rel="stylesheet" />
+    <script src="js/jquery.min.js"></script>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=RobotoDraft:300,400,500,700,400italic"/>
+    <link rel="stylesheet" href="css/bootstrap.min.css"/>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/live/3.0/firebase.js"></script>
+    <script src='https://cdn.rawgit.com/admsev/jquery-play-sound/master/jquery.playSound.js'></script>
+    <script>
+        var marker_icon = "img/green.png";
+        checkLogin();
+
+        function checkLogin(){
+            if(window.localStorage.getItem("loggedIn") == false || window.localStorage.getItem("loggedIn") == null){
+                $(location).attr('href', 'index.html')
+            }else{
+            }
+        }
+
+
+        var config = {
+            apiKey: "AIzaSyAtxHNCUt7Ma0GoGfEoUh5e2rioaZ7YJRY",
+            authDomain: "vehicletracker-ccfe5.firebaseapp.com",
+            databaseURL: "https://vehicletracker-ccfe5.firebaseio.com",
+            storageBucket: "vehicletracker-ccfe5.appspot.com",
+        };
+        firebase.initializeApp(config);
+        var database = firebase.database();
+    </script>
+
+    <script>
+
+
+        var marker, map;
+
+        function initMap(){
+            $.getScript("js/jquery.easing.1.3.js");
+            $.getScript("js/markerAnimate.js");
+            $.getScript("js/SlidingMarker.js");
+
+            var myLatlng = new google.maps.LatLng(7.376871, 4.111612);
+            var bounds = new google.maps.LatLngBounds();
+
+            var mapOptions = {
+                zoom: 8,
+                center: myLatlng,
+                mapTypeId: google.maps.MapTypeId.ROADMAP
+            };
+            map = new google.maps.Map(document.getElementById('map_canvas'), mapOptions);
+
+            var myMarkers = new Array();
+            var myTimeoutFiveMinutes = new Array();
+            var myTimeoutTwentyMinutes = new Array();
+
+
+            var locationUpdateRef = database.ref('location_current');
+            locationUpdateRef.on('value', function (snapshot) {
+
+                snapshot.forEach(function (childSnapshot) {
+                    var key = childSnapshot.getKey();
+
+
+                    var childData = childSnapshot.val();
+                    childData.key = key;
+
+                    console.log(childData,key);
+
+                    var stationary = doCalculation(childData,key);
+
+                    var latLng = new google.maps.LatLng(childData.latitude, childData.longitude);
+                    if(myMarkers[key] == null) {
+                        myMarkers[key] = addMarker(map, childData);
+                        myMarkers[key].setPositionNotAnimated(latLng);
+                    }else{
+                        myMarkers[key].setDuration(2000);
+                        myMarkers[key].setEasing("swing");
+                        myMarkers[key].setPosition(latLng);
+                        myMarkers[key].setIcon("img/green.png");
+                    }
+
+                    if(stationary){
+
+                    }else {
+                        clearTimeout(myTimeoutFiveMinutes[key]);
+                        clearTimeout(myTimeoutTwentyMinutes[key]);
+                    }
+
+
+                    myTimeoutFiveMinutes[key] = setTimeout(function () { setMarkerTimeOut1(myMarkers[key])}, 3000);
+                    myTimeoutTwentyMinutes[key] = setTimeout(function () { setMarkerTimeOut2(myMarkers[key])}, 12000);
+
+
+                    bounds.extend(myMarkers[key].getPosition());
+
+                });
+
+
+
+
+                map.fitBounds(bounds);
+                // map.setCenter(bounds.getCenter());
+                // map.setZoom(map.getZoom() - 1);
+
+            });
+        }
+
+        function setMarkerTimeOut1(marker){
+            marker.setIcon("img/amber.png");
+        }
+//
+        function setMarkerTimeOut2(marker){
+            marker.setIcon("img/red.png");
+            $.playSound("sound/alert");
+        }
+
+
+        function doCalculation(vehicleData,key){
+            var status = false;
+            /////// stationaryGuard is the minimum displacement time ...
+            var stationaryGuard = 60;
+
+            var lastLatitudeKey = key+"_last_latitude";
+            var lastLongitudeKey = key+"_last_longitude";
+            var lastTimeStampKey = key+"_last_timestamp";
+
+
+            var newTimestamp = vehicleData.timestamp;
+            var newLatitude = vehicleData.latitude;
+            var newLongitude = vehicleData.longitude;
+
+
+
+            if(window.localStorage.getItem(lastTimeStampKey) == null){
+
+            }else{
+                var oldTimeStamp = window.localStorage.getItem(lastTimeStampKey);
+                var oldLatitude = window.localStorage.getItem(lastLatitudeKey);
+                var oldLongitude = window.localStorage.getItem(lastLongitudeKey);
+
+                var differenceInTime = getMinutesBetweenDates(oldTimeStamp,newTimestamp);
+                console.log(key+"_differenceInTime:: "+differenceInTime);
+
+                var distanceBetweenPoints = getDistanceBetweenPoints(oldLatitude,oldLongitude,newLatitude,newLongitude);
+                console.log(key+"_distanceBetweenPoints:: "+distanceBetweenPoints);
+
+
+                /////// 5 here is in minutes.
+                if((distanceBetweenPoints < stationaryGuard) && (differenceInTime <= 5)){
+                    status = true;
+                }
+
+                if(key =="To1RvsH1lrSp3oRrmgX1ZRURnEw1"){
+                    window.localStorage.setItem(distanceBetweenPoints,distanceBetweenPoints);
+                }
+
+
+            }
+            return status;
+
+
+//            window.localStorage.setItem(lastLatitudeKey,newLatitude);
+//            window.localStorage.setItem(lastLongitudeKey,newLongitude);
+//            window.localStorage.setItem(lastTimeStampKey,newTimestamp);
+        }
+
+
+        function getMinutesBetweenDates(startDate, endDate) {
+            var diff = endDate - startDate;
+            return (diff / 60000);
+        }
+
+
+
+
+        function getDistanceBetweenPoints(lat1, lon1, lat2, lon2){
+            var R = 6371; // km
+            var dLat = toRad(lat2 - lat1);
+            var dLon = toRad(lon2-lon1);
+            var lat1 = toRad(lat1);
+            var lat2 = toRad(lat2);
+
+            var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            var d = R * c;
+            return (d * 1000);
+        }
+        // Converts numeric degrees to radians
+        function toRad(Value)
+        {
+            return Value * Math.PI / 180;
+        }
+
+
+        function addMarker(map, data) {
+            //create the markers
+
+            var marker = new SlidingMarker({
+                position:  new google.maps.LatLng(data.latitude, data.longitude),
+                map: map,
+                title: data.name,
+                icon: marker_icon
+            });
+
+            //create the info windows
+            var content = document.createElement("DIV");
+            var title = document.createElement("DIV");
+            var details = data.name + "<dd> Altitude: "+data.altitude+
+                    "<br> Speed: "+data.speed+ "Km<br> Latitude: "+data.latitude+
+                    "<br> Longitude: "+data.longitude+" <br>Phone: "+data.phone+" <br>Vehicle Reg.: "+data.vehicle_number;
+
+            title.innerHTML = details;
+            content.appendChild(title);
+
+            var infowindow = new google.maps.InfoWindow({
+                content: content
+            });
+
+            google.maps.event.addListener(marker, "click", function() {
+                infowindow.open(map, marker);
+                window.localStorage.setItem("selected_key",data.key);
+                window.localStorage.setItem("selected_data",JSON.stringify(data));
+                showPanel(data);
+            });
+
+            var geocoder = new google.maps.Geocoder();
+            geocoder.geocode({location:marker.getPosition()}, function(results, status){
+                //console.log(results[0]);
+                if(status == 'OK'){
+                    marker.setTitle(results.formatted_address);
+                    infowindow.setContent("<div>"+details+"<br>"+results[0].formatted_address+"</div>");
+
+                    //$('#main_content').html("<div>"+details+"<br>"+results[0].formatted_address+"</div>");
+                }
+            });
+
+            return marker;
+        }
+
+
+        $(window).on('shown.bs.modal', function() {
+            $('#myModal').modal('show');
+            showHistory();
+
+        });
+
+        //        $("#myModal").on('shown', function(){
+        //            alert("I want this to appear after the modal has opened!");
+        //        });
+        //
+        //
+        //        $('#myModal').on('shown.bs.modal', function() {
+        //            console.log("Shown");
+        //
+        //        });
+
+
+        $('#logout').on('click',function(){
+            window.localStorage.setItem("loggedIn", false);
+            window.localStorage.setItem("loggedInData", null);
+            $(location).attr('href', 'index.html')
+        });
+
+        $('#opener').on('click', function () {
+            showPanel(null);
+        });
+
+
+        function showHistory(){
+            var selected_data = window.localStorage.getItem("selected_data");
+            selected_data = JSON.parse(selected_data);
+
+
+
+            var mapDiv = document.getElementById('map_history');
+            var historyMap = new google.maps.Map(mapDiv, {
+                center: {lat: selected_data.latitude, lng:selected_data.longitude},
+                zoom: 15
+            });
+
+            var snappedCoordinates = [];
+            var placeIdArray = [];
+            var trackPath = new Array();
+
+
+            var selected_key = window.localStorage.getItem("selected_key");
+
+            ///console.log(selected_data);
+            var locationUpdateRef = database.ref('location_history/'+selected_key);
+            var boundsHistory = new google.maps.LatLngBounds();
+            locationUpdateRef.on('value', function (snapshot) {
+                snapshot.forEach(function (childSnapshot) {
+
+                    var loc = childSnapshot.val();
+
+                    var latLng =  new google.maps.LatLng(loc.latitude, loc.longitude);
+                    boundsHistory.extend(latLng);
+                    //addMarker(historyMap, loc);
+
+                    var marker = new google.maps.Marker({
+                        position: latLng,
+                        map: historyMap,
+                        title: loc.name,
+                        icon: "img/point.png"
+                    });
+
+                    trackPath.push(latLng);
+                });
+
+                var polys =new google.maps.Polyline({
+                    strokeColor:"#0000FF",
+                    strokeOpacity:0.8,
+                    strokeWeight:3
+                });
+
+                var service = new google.maps.DirectionsService();
+                var snap_path=[];
+                polys.setMap(historyMap);
+
+                for(j=0;j<trackPath.length-1;j++){
+                    service.route({origin: trackPath[j],destination: trackPath[j+1],travelMode: google.maps.DirectionsTravelMode.DRIVING},function(result, status) {
+                        //console.log(result);
+                        //console.log(status);
+                        if(status == google.maps.DirectionsStatus.OK && result != null) {
+                            snap_path = snap_path.concat(result.routes[0].overview_path);
+                            polys.setPath(snap_path);
+                        }
+                    });
+                }
+
+//
+//            historyMap.fitBounds(boundsHistory);
+//            historyMap.setCenter(boundsHistory.getCenter());
+//            historyMap.setZoom(historyMap.getZoom() - 1);
+//            if (historyMap.getZoom() > 15) {
+//                historyMap.setZoom(13);
+//            }
+
+
+            });
+        }
+
+        function showPanel(data){
+            var panel = $('#slide-panel');
+            if (panel.hasClass("visible")) {
+                if(data == null) {
+                    panel.removeClass('visible').animate({
+                        'right': '-320px'
+                    });
+                }
+            } else {
+                panel.addClass('visible').animate({
+                    'right': '0'
+                });
+                console.log(data);
+            }
+            var details = data.name + "<dd> Altitude: "+data.altitude+
+                    "<br> Speed: "+data.speed+ "Km<br> Latitude: "+data.latitude+
+                    "<br> Longitude: "+data.longitude+" <br>Phone: "+data.phone+" <br>Vehicle Reg.: "+data.vehicle_number;
+            var geocoder = new google.maps.Geocoder();
+            var loc = {lat:data.latitude,lng:data.longitude};
+            geocoder.geocode({location:loc}, function(results, status){
+                //console.log(results[0]);
+                if(status == 'OK'){
+                    $('#main_content').html("<div>"+details+"<br>"+results[0].formatted_address+"</div>");
+                    var marker = "icon:"+marker_icon+"|size:mid|color:red|label:E|"+data.latitude+","+data.longitude;
+                    document.getElementById('static_map').src = "https://maps.googleapis.com/maps/api/staticmap?key=AIzaSyA7olRdK3n9M_6mgw_AutO6bs4uAxtKvx0&center="+data.latitude+","+data.longitude+"&zoom=15&scale=false&size=300x600&maptype=roadmap&format=png&visual_refresh=true&markers="+marker;
+                    //document.getElementById('static_map').src = "http://maps.google.com/staticmap?v=3&center="+data.latitude+","+data.longitude+"&zoom=8&size=450x300&key=AIzaSyA7olRdK3n9M_6mgw_AutO6bs4uAxtKvx0&sensor=false"
+                }
+            });
+
+
+
+            return false;
+        }
+
+    </script>
+</head>
+<body>
+<div id="map_canvas"></div>
+
+
+<div id="slide-panel">
+    <a href="#" class="btn btn-danger" id="opener"><i class="glyphicon glyphicon-align-justify"></i></a>
+    Vehicle Information
+
+
+    <div id="main" class="div-wrapper">
+
+        <!--<img height="100" width="100" src="https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcSC_ADHtyrHL2gAmcuTeRPnqRn2cHe-XKTUhY11WAd8pd-GADD2" alt="..." class="img-circle">-->
+        <div id="main_content">
+
+        </div>
+        <a id="history" style="margin:5px 0px 5px 0px" data-target="#myModal"
+           role="button" class="btn btn-primary btn-block" data-toggle="modal">View Location History</a>
+
+        <img src="" id="static_map">
+
+        <button id="logout">Logout</button>
+    </div>
+</div>
+
+
+<div class="modal fade bs-example-modal-lg" id="myModal" role="dialog">
+    <div class="modal-dialog modal-lg">
+
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Location History</h4>
+            </div>
+            <div class="modal-body" id="map_history">
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7olRdK3n9M_6mgw_AutO6bs4uAxtKvx0&callback=initMap"></script>
+</body>
+</html>

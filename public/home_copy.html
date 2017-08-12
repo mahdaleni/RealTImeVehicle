@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>Vehicle Tracker</title>
+    <script src="js/jquery.min.js"></script>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=RobotoDraft:300,400,500,700,400italic"/>
+    <link rel="stylesheet" href="css/bootstrap.min.css"/>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/live/3.0/firebase.js"></script>
+
+    <script>
+        var marker_icon = "img.png";
+        checkLogin();
+
+        function checkLogin(){
+            if(window.localStorage.getItem("loggedIn") == false || window.localStorage.getItem("loggedIn") == null){
+                $(location).attr('href', 'index.html')
+            }else{
+            }
+        }
+
+
+        // Initialize Firebase
+        var config = {
+            apiKey: "AIzaSyAtxHNCUt7Ma0GoGfEoUh5e2rioaZ7YJRY",
+            authDomain: "vehicletracker-ccfe5.firebaseapp.com",
+            databaseURL: "https://vehicletracker-ccfe5.firebaseio.com",
+            storageBucket: "vehicletracker-ccfe5.appspot.com",
+        };
+        firebase.initializeApp(config);
+        var database = firebase.database();
+    </script>
+    <style>
+        html {
+            height: 100%
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        #map_history {
+            width: 100%;
+            height: 70vh;
+        }
+
+        .div-wrapper {
+            position: relative;
+            height: 96%;
+            width: 100%;
+        }
+
+        body {
+            overflow-x: hidden;
+        }
+
+        #slide-panel {
+            width:320px;
+            height:100vh;
+            padding:10px;
+            background:#fff;
+            margin-left:100%;
+            position: absolute;
+            top: 0;
+            right: -320px;
+        }
+        #opener {
+            float:left;
+            margin:-10px -50px 0px -50px;
+            border-radius:0;
+        }
+
+        #main{
+            position: relative;
+        }
+
+        #logout{
+            position: absolute;
+            right:    0;
+            bottom:   0;
+        }
+    </style>
+    <script type="application/javascript">
+        var map;
+        var myMarkers = new Array();
+        var speed = 500; // km/h
+        var delay = 100;
+
+        // If you set the delay below 1000ms and you go to another tab,
+        // the setTimeout function will wait to be the active tab again
+        // before running the code.
+        // See documentation :
+        // https://developer.mozilla.org/en-US/docs/Web/API/WindowTimers/setTimeout#Inactive_tabs
+    </script>
+</head>
+<body class="dashboard">
+
+<div id="map"></div>
+
+
+<div id="slide-panel">
+    <a href="#" class="btn btn-danger" id="opener"><i class="glyphicon glyphicon-align-justify"></i></a>
+    Vehicle Information
+
+
+    <div id="main" class="div-wrapper">
+
+        <!--<img height="100" width="100" src="https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcSC_ADHtyrHL2gAmcuTeRPnqRn2cHe-XKTUhY11WAd8pd-GADD2" alt="..." class="img-circle">-->
+        <div id="main_content">
+
+        </div>
+        <a id="history" style="margin:5px 0px 5px 0px" data-target="#myModal"
+           role="button" class="btn btn-primary btn-block" data-toggle="modal">View Location History</a>
+
+        <img src="" id="static_map">
+
+        <button id="logout">Logout</button>
+    </div>
+</div>
+
+<script>
+    function initMap() {
+        var mapDiv = document.getElementById('map');
+        map = new google.maps.Map(mapDiv, {
+            center: {lat: 44.540, lng: -78.546},
+            zoom: 8
+        });
+    }
+</script>
+<!--<script async defer-->
+        <!--src="https://maps.googleapis.com/maps/api/js?v=3&key=AIzaSyA7olRdK3n9M_6mgw_AutO6bs4uAxtKvx0&callback=initMap">-->
+<!--</script>-->
+
+
+<!-- Modal -->
+<div class="modal fade bs-example-modal-lg" id="myModal" role="dialog">
+    <div class="modal-dialog modal-lg">
+
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Location History</h4>
+            </div>
+            <div class="modal-body" id="map_history">
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+
+</body>
+
+
+<script async defer src="https://maps.googleapis.com/maps/api/js?v=3&libraries=geometry&key=AIzaSyA7olRdK3n9M_6mgw_AutO6bs4uAxtKvx0&callback=initMap"></script>
+
+<script>
+
+    $('#myModal').on('shown.bs.modal', function() {
+        console.log("Shown");
+        var mapDiv = document.getElementById('map_history');
+        var historyMap = new google.maps.Map(mapDiv, {
+            center: {lat: 44.540, lng: -78.546},
+            zoom: 8
+        });
+    });
+
+
+    $('#logout').on('click',function(){
+        window.localStorage.setItem("loggedIn", false);
+        window.localStorage.setItem("loggedInData", null);
+        $(location).attr('href', 'index.html')
+    });
+
+    $('#opener').on('click', function () {
+        showPanel(null);
+    });
+
+
+    function showPanel(data){
+        var panel = $('#slide-panel');
+        if (panel.hasClass("visible")) {
+            if(data == null) {
+                panel.removeClass('visible').animate({
+                    'right': '-320px'
+                });
+            }
+        } else {
+            panel.addClass('visible').animate({
+                'right': '0'
+            });
+            console.log(data);
+        }
+        var details = data.name + "<dd> Altitude: "+data.altitude+ "<br> Speed: "+data.speed+ "<br> Latitude: "+data.latitude+ "<br> Longitude: "+data.longitude;
+        var geocoder = new google.maps.Geocoder();
+        var loc = {lat:data.latitude,lng:data.longitude};
+        geocoder.geocode({location:loc}, function(results, status){
+            //console.log(results[0]);
+            if(status == 'OK'){
+                $('#main_content').html("<div>"+details+"<br>"+results[0].formatted_address+"</div>");
+                var marker = "icon:"+marker_icon+"|size:mid|color:red|label:E|"+data.latitude+","+data.longitude;
+                document.getElementById('static_map').src = "http://maps.googleapis.com/maps/api/staticmap?center="+data.latitude+","+data.longitude+"&zoom=15&scale=false&size=300x600&maptype=roadmap&format=png&visual_refresh=true&markers="+marker;
+                //document.getElementById('static_map').src = "http://maps.google.com/staticmap?v=3&center="+data.latitude+","+data.longitude+"&zoom=8&size=450x300&key=AIzaSyA7olRdK3n9M_6mgw_AutO6bs4uAxtKvx0&sensor=false"
+            }
+        });
+
+
+
+        return false;
+    }
+
+
+
+
+
+    var locationUpdateRef = database.ref('location_current');
+    locationUpdateRef.on('value', function (snapshot) {
+
+        var bounds = new google.maps.LatLngBounds();
+        deleteMarkers();
+
+        snapshot.forEach(function (childSnapshot) {
+            var key = childSnapshot.getKey();
+
+
+            var childData = childSnapshot.val();
+            childData.key = key;
+
+
+            if(myMarkers[key] == null) {
+                myMarkers[key] = addMarker(map, childData);
+                bounds.extend(myMarkers[key].getPosition());
+                //console.log("New Marker "+key);
+            }else{
+                myMarkers[key] = addMarker(map, childData);
+                bounds.extend(myMarkers[key].getPosition());
+                //console.log(myMarkers[key].position.lat());
+                //console.log("Old Location "+myMarkers[key].position.lat() + "|" + myMarkers[key].position.lng());
+                //console.log("New Location:: "+childData.latitude+"|"+childData.longitude);
+                //animateMarker(myMarkers[key],)
+
+//                animateMarker(myMarkers[key], [
+//                    [childData.latitude, childData.longitude]
+//                ], speed);
+
+
+//                animateMarker(myMarkers[key], [
+//                    // The coordinates of each point you want the marker to go to.
+//                    // You don't need to specify the starting position again.
+//                    [42.42666395645802, -83.29694509506226],
+//                    [42.42300508749226, -83.29679489135742],
+//                    [42.42304468678425, -83.29434871673584],
+//                    [42.424882066428424, -83.2944130897522],
+//                    [42.42495334300206, -83.29203128814697]
+//                ], speed);
+            }
+
+            //console.log(childData);
+
+
+        });
+
+        map.fitBounds(bounds);
+        map.setCenter(bounds.getCenter());
+        map.setZoom(map.getZoom() - 1);
+
+        // set a minimum zoom
+        // if you got only 1 marker or all markers are on the same address map will be zoomed too much.
+        if (map.getZoom() > 15) {
+            map.setZoom(13);
+        }
+
+        //console.log(myMarkers);
+
+    });
+
+
+    function addMarker(map, data) {
+        //create the markers
+        var marker = new google.maps.Marker({
+            position: new google.maps.LatLng(data.latitude, data.longitude),
+            map: map,
+            draggable:true,
+            title: data.name,
+            icon: marker_icon
+        });
+
+        //create the info windows
+        var content = document.createElement("DIV");
+        var title = document.createElement("DIV");
+        var details = data.name + "<dd> Altitude: "+data.altitude+ "<br> Speed: "+data.speed+ "<br> Latitude: "+data.latitude+ "<br> Longitude: "+data.longitude;
+        title.innerHTML = details;
+        content.appendChild(title);
+
+        var infowindow = new google.maps.InfoWindow({
+            content: content
+        });
+
+        // Open the infowindow on marker click
+        google.maps.event.addListener(marker, "click", function() {
+            infowindow.open(map, marker);
+
+            showPanel(data);
+        });
+
+        var geocoder = new google.maps.Geocoder();
+        geocoder.geocode({location:marker.getPosition()}, function(results, status){
+            //console.log(results[0]);
+            if(status == 'OK'){
+                marker.setTitle(results.formatted_address);
+                infowindow.setContent("<div>"+details+"<br>"+results[0].formatted_address+"</div>");
+                window.localStorage.setItem("selected_key",data.key);
+                //$('#main_content').html("<div>"+details+"<br>"+results[0].formatted_address+"</div>");
+
+            }
+        });
+
+        return marker;
+    }
+
+    function deleteMarkers() {
+        //Loop through all the markers and remove
+        for (var i in myMarkers) {
+            myMarkers[i].setMap(null);
+        }
+        myMarkers = new Array();
+    };
+
+
+    function animateMarker(marker, coords, km_h)
+    {
+        var target = 0;
+        var km_h = km_h || 50;
+        coords.push(marker.position.lat(), marker.position.lng());
+
+        function goToPoint()
+        {
+            var lat = marker.position.lat();
+            var lng = marker.position.lng();
+            var step = (km_h * 1000 * delay) / 3600000; // in meters
+
+            var dest = new google.maps.LatLng(
+                    coords[target][0], coords[target][1]);
+
+            var distance =
+                    google.maps.geometry.spherical.computeDistanceBetween(
+                            dest, marker.position); // in meters
+
+            var numStep = distance / step;
+            var i = 0;
+            var deltaLat = (coords[target][0] - lat) / numStep;
+            var deltaLng = (coords[target][1] - lng) / numStep;
+
+            function moveMarker()
+            {
+                lat += deltaLat;
+                lng += deltaLng;
+                i += step;
+
+                if (i < distance)
+                {
+                    marker.setPosition(new google.maps.LatLng(lat, lng));
+                    setTimeout(moveMarker, delay);
+                }
+                else
+                {   marker.setPosition(dest);
+                    target++;
+                    if (target == coords.length){ target = 0; }
+
+                    setTimeout(goToPoint, delay);
+                }
+            }
+            moveMarker();
+        }
+        goToPoint();
+    }
+
+
+    var rad = function(x) {
+        return x * Math.PI / 180;
+    };
+
+    var getDistance = function(p1, p2) {
+        var R = 6378137; // Earth’s mean radius in meter
+        var dLat = rad(p2.lat() - p1.lat());
+        var dLong = rad(p2.lng() - p1.lng());
+        var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(rad(p1.lat())) * Math.cos(rad(p2.lat())) *
+                Math.sin(dLong / 2) * Math.sin(dLong / 2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        var d = R * c;
+        return d; // returns the distance in meter
+    };
+
+</script>
+</html>

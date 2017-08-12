@@ -1,0 +1,14 @@
+[debug] ----------------------------------------------------------------------
+[debug] Command:      /usr/local/Cellar/node/6.2.2/bin/node /usr/local/bin/firebase serve
+[debug] CLI Version:  3.0.3
+[debug] Platform:     darwin
+[debug] Node Version: v6.2.2
+[debug] Time:         Mon Jul 04 2016 11:21:41 GMT+0100 (WAT)
+[debug] ----------------------------------------------------------------------
+[debug] 
+[info] Starting Firebase development server...
+[info] 
+[info] Project Directory: /Applications/MAMP/htdocs/vehicle_tracker
+[info] Public Directory: public
+[info] 
+[info] Server listening at: http://localhost:5000
